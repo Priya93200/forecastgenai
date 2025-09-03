@@ -8,7 +8,7 @@ from io import BytesIO
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 # ---------------- CONFIG ----------------
-genai.configure(api_key="AIzaSyCehsZceKKvIvKbr3MmzPqtCRvjvx3lsXY")  # Replace with your key
+genai.configure(api_key="AIzaSyAIgZcXNSK0PBeqtAnCeYtZCDbDGbRGXio")  # Replace with your key
 
 st.set_page_config(page_title="ARIMA Forecasting", layout="wide")
 st.title("📊 AI insights generator using ARIMA models forecasting")
