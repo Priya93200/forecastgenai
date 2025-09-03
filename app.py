@@ -3,15 +3,14 @@ import pandas as pd
 import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
 import google.generativeai as genai
-import plotly.express as px
 from io import BytesIO
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 # ---------------- CONFIG ----------------
-genai.configure(api_key="AIzaSyAIgZcXNSK0PBeqtAnCeYtZCDbDGbRGXio")  # Replace with your key
+genai.configure(api_key="AIzaSyABvHHzNc8onix2XF7Axw-TgvSWGAxizgo")  # Replace with your key
 
 st.set_page_config(page_title="ARIMA Forecasting", layout="wide")
-st.title("📊 AI insights generator using ARIMA models forecasting")
+st.title("📊 AI Insights Generator using ARIMA Forecasting")
 
 # ---------------- Model Helpers ----------------
 @st.cache_data(show_spinner=False)
@@ -35,7 +34,7 @@ if uploaded_file:
 
         # Group by date to ensure unique index
         df = df.groupby(date_col).sum(numeric_only=True)
-        df.index.name = date_col  # set index name
+        df.index.name = date_col
 
         # Detect sales column
         sales_col = next((col for col in df.columns if "sale" in col.lower() or "revenue" in col.lower()), None)
@@ -52,6 +51,16 @@ if uploaded_file:
             st.dataframe(df.head(20))
             st.write(f"Dataset contains {df.shape[0]} rows and {df.shape[1]} columns.")
 
+            # ---------------- Highest and Lowest Sales ----------------
+            highest_sales = df[sales_col].idxmax()
+            lowest_sales = df[sales_col].idxmin()
+            highest_value = df[sales_col].max()
+            lowest_value = df[sales_col].min()
+
+            st.markdown("### 💰 Sales Summary")
+            st.write(f"**Highest Sales:** {highest_value:,.2f} on {highest_sales.date()}")
+            st.write(f"**Lowest Sales:** {lowest_value:,.2f} on {lowest_sales.date()}")
+
         # ---------------- Tab 2: Forecast ----------------
         with tabs[1]:
             st.subheader("ARIMA Forecast")
@@ -66,36 +75,26 @@ if uploaded_file:
             forecast_series = model_fit.forecast(steps=forecast_days)
             forecast_values = np.exp(forecast_series) if use_log else forecast_series
 
-            # Forecast DataFrame
+            # Forecast DataFrame (for table only)
             forecast_index = pd.date_range(start=df.index.max() + pd.Timedelta(days=1), periods=forecast_days)
-            forecast_df = pd.DataFrame({"Forecasted Sales": forecast_values}, index=forecast_index)
+            forecast_table_df = pd.DataFrame({"Forecasted Sales": forecast_values}, index=forecast_index)
 
-            # Combine actual and forecast
+            # ---------------- Chart (show actual + forecast) ----------------
             actual_df = df[[sales_col]].rename(columns={sales_col: "Actual Sales"})
-            full_df = pd.concat([actual_df, forecast_df], axis=1)
-
-            # ---------------- Chart ----------------
+            full_chart_df = pd.concat([actual_df, forecast_table_df.rename(columns={"Forecasted Sales": "Forecasted Sales"})], axis=0)
             st.markdown("### 📈 Chart: Actual and Forecast Visualization")
-            st.line_chart(full_df)
+            st.line_chart(full_chart_df)
 
-            # ---------------- Table ----------------
-            def highlight_forecast_row(row):
-                if pd.isna(row.get("Actual Sales")):
-                    return ["background-color: lightgreen"] * len(row)
-                else:
-                    return [""] * len(row)
-
-            st.markdown("### 📌 Actual vs Forecast Table")
-            styled_display = full_df.style.format("{:,.2f}").apply(highlight_forecast_row, axis=1)
-            st.dataframe(styled_display, use_container_width=True)
+            # ---------------- Table (forecast only) ----------------
+            st.markdown("### 📌 Forecast Table (Dates & Forecasted Sales)")
+            st.dataframe(forecast_table_df.style.format("{:,.2f}"), use_container_width=True)
 
             # ---------------- CSV Download ----------------
-            csv_bytes = full_df.reset_index().rename(columns={"index": "Date"}).to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Download Actual vs Forecast CSV", data=csv_bytes, file_name="actual_vs_forecast.csv", mime="text/csv")
+            csv_bytes = forecast_table_df.reset_index().rename(columns={"index": "Date"}).to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Download Forecast CSV", data=csv_bytes, file_name="forecast_only.csv", mime="text/csv")
 
             # ---------------- Last Forecast Summary ----------------
-            last_actual = df[sales_col].iloc[-1]
-            last_forecast_value = forecast_df["Forecasted Sales"].iloc[-1]
+            last_forecast_value = forecast_table_df["Forecasted Sales"].iloc[-1]
             st.success(f"✅ Forecasted Sales after {forecast_days} days: {last_forecast_value:,.2f}")
 
         # ---------------- Tab 3: Anomaly Detection ----------------
@@ -136,7 +135,7 @@ if uploaded_file:
             lang = st.selectbox("Select Language for Insights", ["English", "Spanish", "French", "German", "Hindi"])
 
             last_actual = df[sales_col].iloc[-1]
-            last_forecast = forecast_df["Forecasted Sales"].iloc[-1]
+            last_forecast = forecast_table_df["Forecasted Sales"].iloc[-1]
             growth = (last_forecast - last_actual) / last_actual * 100
 
             prompt = f"""
@@ -168,4 +167,4 @@ if uploaded_file:
             st.markdown(response.text)
 
     except Exception as e:
-        st.error(f" Error: {e}")
+        st.error(f"Error: {e}")
